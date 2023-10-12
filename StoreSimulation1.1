@@ -1,0 +1,173 @@
+package queue;
+
+import queue.ArrayQueue;
+import queue.LinkedQueue;
+import queue.EmptyQueueException;
+import queue.LinkedQueue;
+
+public class StoreSimulation {
+    private static final int NUM_REGS = 8;
+    private static final double SERVICE_TIME = 2.0;
+    private double ARRIVAL_TIME; // Variable for time between new customer arrivals
+    private static final int WORKDAY_HOURS = 16;
+    private static final int SIMULATION_INTERVAL = WORKDAY_HOURS * 60; // In minutes
+
+    private Register[] registers;
+    private int lostCustomers;
+    private int servedCustomers;
+
+    public StoreSimulation(double arrivalTime) {
+        ARRIVAL_TIME = arrivalTime;
+        registers = new Register[NUM_REGS];
+        for (int i = 0; i < NUM_REGS; i++) {
+            registers[i] = new Register();
+        }
+        lostCustomers = 0;
+        servedCustomers = 0;
+    }
+
+    public void update() {
+        // Update remaining times for customers in the queues
+        for (Register register : registers) {
+            while (!register.isEmpty()) {
+                Customer customer = register.getFront();
+                customer.updateRemainingTime(1.0); // Update by 1 minute
+                if (customer.getRemainingTime() <= 0) {
+                    register.dequeue();
+                    servedCustomers++;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Find the register with the shortest line length
+        Register shortestRegister = registers[0];
+        for (int i = 1; i < NUM_REGS; i++) {
+            if (registers[i].getLineLength() < shortestRegister.getLineLength()) {
+                shortestRegister = registers[i];
+            }
+        }
+
+        // Try to add a new customer to the shortest line
+        if (!shortestRegister.isFull()) {
+            double newCustomerRemainingTime = shortestRegister.isEmpty() ? SERVICE_TIME :
+                    shortestRegister.getLastCustomerRemainingTime() + SERVICE_TIME;
+            shortestRegister.enqueue(new Customer(newCustomerRemainingTime));
+        } else {
+            lostCustomers++;
+        }
+    }
+
+    public int getLostCustomers() {
+        return lostCustomers;
+    }
+
+    public int getServedCustomers() {
+        return servedCustomers;
+    }
+
+    public static void main(String[] args) {
+        double optimalArrivalTime = 0; // Variable to store the optimal arrival time
+        int minLostCustomers = Integer.MAX_VALUE; // Variable to store the minimum lost customers
+
+        // Perform simulations with different values of ARRIVAL_TIME
+        for (double arrivalTime = 1.0; arrivalTime <= 10.0; arrivalTime += 0.1) {
+            StoreSimulation store = new StoreSimulation(arrivalTime);
+
+            for (int minute = 0; minute < SIMULATION_INTERVAL; minute++) {
+                store.update();
+            }
+
+            // Check if this simulation resulted in fewer lost customers
+            if (store.getLostCustomers() < minLostCustomers) {
+                minLostCustomers = store.getLostCustomers();
+                optimalArrivalTime = arrivalTime;
+            }
+        }
+        
+        System.out.println("Customers Served: " + optimalArrivalTime);
+        System.out.println("Lost Customers: " + minLostCustomers);
+
+    }
+}
+
+class Register {
+    private LinkedQueue<Customer> queue;
+    private int lineLength; // Keep track of line length
+
+    public Register() {
+        queue = new LinkedQueue<>();
+        lineLength = 0; // Initialize line length
+    }
+
+    public int getLineLength() {
+        return lineLength;
+    }
+
+    public boolean isFull() {
+        return lineLength >= 4;
+    }
+
+    public boolean isEmpty() {
+        return lineLength == 0;
+    }
+
+    public Customer getFront() {
+        if (!isEmpty()) {
+            return queue.getFront();
+        }
+        return null; // Handle the case when the queue is empty
+    }
+
+    public double getLastCustomerRemainingTime() {
+        if (!isEmpty()) {
+            Customer lastCustomer = null;
+            LinkedQueue<Customer> tempQueue = new LinkedQueue<>();
+
+            // Dequeue and enqueue customers until the last customer is found
+            while (!queue.isEmpty()) {
+                lastCustomer = queue.dequeue();
+                tempQueue.enqueue(lastCustomer);
+            }
+
+            // Restore the original queue
+            while (!tempQueue.isEmpty()) {
+                queue.enqueue(tempQueue.dequeue());
+            }
+
+            return lastCustomer.getRemainingTime();
+        }
+        return 0;
+    }
+
+
+    public void enqueue(Customer customer) {
+        queue.enqueue(customer);
+        lineLength++; // Increase line length
+    }
+
+    public void dequeue() {
+        if (!isEmpty()) {
+            queue.dequeue();
+            lineLength--; // Decrease line length
+        }
+    }
+}
+
+class Customer {
+    private double remainingTime;
+
+    public Customer(double remainingTime) {
+        this.remainingTime = remainingTime;
+    }
+
+    public double getRemainingTime() {
+        return remainingTime;
+    }
+
+    public void updateRemainingTime(double time) {
+        remainingTime -= time;
+    }
+}
+ // end class StoreSimulation
